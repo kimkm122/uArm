@@ -8,9 +8,9 @@ from uarm.wrapper import SwiftAPI
 #Initialize Swift Parameters
 swift = SwiftAPI(filters={'hwid': 'USB VID:PID=2341:0042'})
 swift.waiting(timeout=3)
-speed = 250
 swift.set_mode(0)
 swift.set_height_offset(offset=45)
+speed = 250
 
 #Swift Coordinate Constraints
 x_min = 100
