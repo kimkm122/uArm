@@ -14,7 +14,7 @@ swift.set_height_offset(offset=45)
 
 #Swift Coordinate Constraints
 x_min = 100
-x_max = 400
+x_max = 500
 y_min = -200
 y_max = 200
 z_min = 0
