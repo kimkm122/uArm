@@ -40,11 +40,11 @@ contours, hierarchy = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_NO
 #Draw Contours
 swift.reset(wait=True, speed=speed)
 for c in contours:
-	uarm.set_position(z=z_max)
+	swift.set_position(z=z_max)
 	for i in range(len(c)):
 		x, y = c[i][0]
 		x_translated = int(x + x_min)
 		y_translated = int(y - (scale_width / 2))
-		uarm.set_position(x=x_translated, y =y_translated, speed=speed)
-		uarm.set_position(z=z_min)
-		uarm.flush_cmd(wait_stop=True)
+		swift.set_position(x=x_translated, y =y_translated, speed=speed)
+		swift.set_position(z=z_min)
+		swift.flush_cmd(wait_stop=True)
