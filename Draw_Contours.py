@@ -2,8 +2,12 @@ import os
 import sys
 import time
 import cv2
+import numpy as np
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../..'))
 from uarm.wrapper import SwiftAPI
+
+folder = 'media/kkim/Data/Pictures/Edge_Detection'
+file = 'cat02_at_iteratin_5.png'
 
 #Initialize Swift Parameters
 swift = SwiftAPI(filters={'hwid': 'USB VID:PID=2341:0042'})
@@ -21,7 +25,7 @@ z_min = 0
 z_max = 100
 
 #Load Image
-source = cv2.imread('C:/Source.png', cv2.IMREAD_UNCHANGED)
+source = cv2.imread(folder + '/Source/' + file, cv2.IMREAD_UNCHANGED)
 
 #Resize Image to Scale
 height, width, channels = source.shape
