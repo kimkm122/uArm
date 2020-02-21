@@ -29,7 +29,8 @@ def get_contours(file):
 	
 	#Extract Contours
 	gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
-	blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+	smoothed = cv2.bilateralFilter(gray, 9, 75, 75)
+	blurred = cv2.GaussianBlur(smoothed, (3, 3), 0)
 	edges = cv2.Canny(blurred, 300, 350)
 	im2, contours, hierarchy = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 	return contours
