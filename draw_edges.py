@@ -7,10 +7,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../../..'))
 from uarm.wrapper import SwiftAPI
 
 #Global Swift Parameters
-x_min = 100
-x_max = 300
-y_min = -100
-y_max = 100
+x_min = 150
+x_max = 250
+y_min = -50
+y_max = 50
 z_min = 0
 z_max = 30
 speed = 10000
