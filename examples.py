@@ -9,4 +9,4 @@ draw.draw_contours(contours, image_scale = scale)
 
 #Example Writing
 write = pen.Writing(start_position = [255, 0])
-write.write_text('Tigger', font_file = 'gothgbt.cxf')
+write.write_text('Momo', font_file = 'gothgbt.cxf')
