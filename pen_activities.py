@@ -1,7 +1,7 @@
 import os
 import sys
 import time
-import math
+from math import *
 import re
 import glob
 import cv2
@@ -14,7 +14,7 @@ default_position = [100, 0, 50]	#swift reset position
 default_speed = 30000			#speed when in transit (not drawing)
 
 font_path = os.path.dirname(os.path.realpath(__file__))+'/cxf-fonts/'
-font_list = [os.path.basename(x) for x in glob.glob(fontPath + '*.cxf')]
+font_list = [os.path.basename(x) for x in glob.glob(font_path + '*.cxf')]
 
 #=======================================================================
 class uArm:
@@ -28,46 +28,49 @@ class uArm:
 		#Initialize Swift
 		self.swift = SwiftAPI(filters={'hwid': 'USB VID:PID=2341:0042'})
 		self.swift.waiting_ready(timeout=3)
-		device_info = swift.get_device_info()
+		device_info = self.swift.get_device_info()
 		firmware_version = device_info['firmware_version']
 		if firmware_version and not firmware_version.startswith(('0.', '1.', '2.', '3.')):
 			self.swift.set_speed_factor(0.0005)
 		self.swift.set_mode(0)
-		self.reset
+		self.reset()
 
 	def reset(self):
-		self.swift.reset(wait = True, x = self.default_x, y = self.default_y, z = self.default_z, speed = self.default_speed)
+		self.swift.set_position(z=self.default_z, speed = self.default_speed)
+		self.swift.flush_cmd(wait_stop = True)
+		self.swift.reset(wait = True, z = self.default_z, speed = self.default_speed)
+		self.swift.flush_cmd(wait_stop = True)
 
 	def move(self, x = None, y = None, z = None, speed = None):
 		self.swift.set_position(x = x, y = y , z = z, speed = speed)
 		self.swift.flush_cmd(wait_stop = True)
 
 	def finish(self):
-		self.reset
+		self.reset()
 		self.swift.disconnect()
 
 #=======================================================================
 def set_pen_position():
 	arm = uArm()
-	arm.reset
+	arm.reset()
 	confirm = input('Arm in default position.  Hit any key to continue')
 	arm.move(z = z_min)
 	confirm = input('Arm in drawing position.  Hit any key to continue')
-	arm.finish
+	arm.finish()
 
 #=======================================================================
 class Drawing:
 	def __init__(self, draw_area = [[150, 250], [-50, 50]], z_offset = 0):
-		self.x_min = draw_area[0, 0]
-		self.x_max = draw_area[0, 1]
-		self.y_min = draw_area[1, 0]
-		self.y_max = draw_area[1, 1]
+		self.x_min = draw_area[0][0]
+		self.x_max = draw_area[0][1]
+		self.y_min = draw_area[1][0]
+		self.y_max = draw_area[1][1]
 		self.z_min = z_min + z_offset
 		self.z_max = z_max + z_offset
 
 	def get_edges(self, file, bilateral_kSize = 3, bilateral_sigmaColor = 75, bilateral_sigmaSpace = 75, gaussian_kSize = 9, canny_minVal = 250, canny_maxVal = 300):
 		image = cv2.imread(file)
-		image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+		self.image_height, self.image_width, _ = image.shape
 		image = cv2.bilateralFilter(image, bilateral_kSize, bilateral_sigmaColor, bilateral_sigmaSpace)
 		image = cv2.GaussianBlur(image, (gaussian_kSize, gaussian_kSize), 0)
 		image = cv2.Canny(image, canny_minVal, canny_maxVal)
@@ -80,8 +83,8 @@ class Drawing:
 		return contours
 
 	def get_scale(self, image):
-		height, width, channels = image.shape
-		scale = min((self.x_max - self.x_min) / height, (self.y_max - self.y_min) / width)
+		#height, width, channels = image.shape
+		scale = min((self.x_max - self.x_min) / self.image_height, (self.y_max - self.y_min) / self.image_width)
 		return scale
 
 	def draw_contours(self, contours, image_scale = 1, contour_threshold = 5, draw_speed = 5000):
@@ -89,7 +92,8 @@ class Drawing:
 		contour_count = len(contours)
 		contour_number = 0
 		for contour in contours:
-			contour_number += contour_number
+			contour_number = contour_number + 1
+			print(contour_number)
 			speed = arm.default_speed
 			arm.move(z = self.z_max, speed = speed)
 			if len(contour) >= contour_threshold:
@@ -105,11 +109,14 @@ class Drawing:
 					arm.move(z = self.z_min, speed = arm.default_speed)
 					speed = draw_speed
 			else:
-				print('skipping contour #: ' + str_contour_number + ' (points = ' + len(contour) + ')')
+				print('skipping contour #: ' + str(contour_number) + ' (points = ' + str(len(contour)) + ')')
 		print('done')
-		arm.finish
+		arm.finish()
 
 #=======================================================================
+#This bit forked from https://github.com/LinuxCNC/simple-gcode-generators
+#Modified for uArm coordinates system instead of gcode
+
 def parse(file):
 	font = {}
 	key = None
@@ -245,32 +252,33 @@ class Writing:
 				
 				#Need to swap coordinates for uArm to write in correct orientation for some reason
 				x1 = stroke.ystart
-				y1 = -stroke.xstart - xoffset
+				y1 = -stroke.xstart - x_offset
 				x1, y1 = rotate_scale(x1, y1, x_scale, y_scale, text_angle)
 
 				if (dist > 0.001) or first_stroke:
 					first_stroke = False
-					arm.move(z = arm.z_max, speed = arm.default_speed)
-					arm.move(x = x1 + x_start, y = y1 + y_start, speed = arm.default_speed)
-					arm.move(z = arm.z_min, speed = arm.default_speed)
+					arm.move(z = self.z_max, speed = arm.default_speed)
+					arm.move(x = x1 + self.x_start, y = y1 + self.y_start, speed = arm.default_speed)
+					arm.move(z = self.z_min, speed = arm.default_speed)
 
 				#Coordinates swapped here again
 				x2 = stroke.yend
-				y2 = -stroke.xend - xoffset
-				x2, y2 = Rotn(x2, y2, XScale, YScale, Angle)
+				y2 = -stroke.xend - x_offset
+				x2, y2 = rotate_scale(x2, y2, x_scale, y_scale, text_angle)
 
-				arm.move(x = x2 + x_start, y = y2 + y_st, speed = draw_speed)
+				arm.move(x = x2 + self.x_start, y = y2 + self.y_start, speed = draw_speed)
 
 				old_x, old_y = stroke.xend, stroke.yend
 
 			char_width = font[char].get_xmax()
 			x_offset += font_char_space + char_width
 		print('done')
-		arm.finish
+		arm.finish()
 
 #=======================================================================
 def main():
 	cmd_type = sys.argv[1]
+	print('drawing')
 	if cmd_type == 'draw':
 		source = sys.argv[2]
 		draw = Drawing()
