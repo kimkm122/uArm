@@ -93,7 +93,6 @@ class Drawing:
 		contour_number = 0
 		for contour in contours:
 			contour_number = contour_number + 1
-			print(contour_number)
 			speed = arm.default_speed
 			arm.move(z = self.z_max, speed = speed)
 			if len(contour) >= contour_threshold:
