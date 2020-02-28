@@ -110,6 +110,7 @@ class Drawing:
 					arm.move(z = self.z_min, speed = arm.default_speed)
 					speed = draw_speed
 		arm.finish()
+		bar.close()
 
 	def get_numpy_stipples(self, npy_file):
 		stipples = np.load(npy_file)
@@ -139,6 +140,7 @@ class Drawing:
 			arm.move(x = x_translated, y = y_translated, speed = default_speed)
 			arm.move(z = self.z_min, speed = arm.default_speed)
 		arm.finish()
+		bar.close()
 
 #=======================================================================
 #=   				   Writing Class and Functions			       	   =
@@ -306,6 +308,7 @@ class Writing:
 			char_width = font[char].get_xmax()
 			x_offset += font_char_space + char_width
 		arm.finish()
+		bar.close()
 
 #=======================================================================
 #=   				   		 	Main			       	   			   =
