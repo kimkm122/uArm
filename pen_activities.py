@@ -88,21 +88,17 @@ class Drawing:
 		return contours
 
 	def get_scale(self, image):
-		#height, width, channels = image.shape
 		scale = min((self.x_max - self.x_min) / self.image_height, (self.y_max - self.y_min) / self.image_width)
 		return scale
 
 	def draw_contours(self, contours, image_scale = 1, contour_threshold = 5, draw_speed = 5000):
-		#arm = uArm()
 		global arm
-		contour_count = len(contours)
-		contour_number = 0
+		bar = tqdm.tqdm(total = len(contours), desc = 'Drawing')
 		for contour in contours:
-			contour_number = contour_number + 1
+			bar.update()
 			speed = arm.default_speed
 			arm.move(z = self.z_max, speed = speed)
 			if len(contour) >= contour_threshold:
-				print('drawing contour: ' + str(contour_number) + ' of ' + str(contour_count))
 				for point in range(len(contour)):
 					#Coordinates need to be flipped for some reason
 					y, x = contour[point][0]
@@ -113,9 +109,6 @@ class Drawing:
 					arm.move(x = x_translated, y = y_translated, speed = speed)
 					arm.move(z = self.z_min, speed = arm.default_speed)
 					speed = draw_speed
-			else:
-				print('skipping contour #: ' + str(contour_number) + ' (points = ' + str(len(contour)) + ')')
-		print('done')
 		arm.finish()
 
 	def get_numpy_stipples(self, npy_file):
@@ -124,20 +117,18 @@ class Drawing:
 
 	def draw_stipples(self, stipples):
 		global arm
-		stipple_count = len(stipples)
-		stipple_number = 0
+		bar = tqdm.tqdm(total = len(stipples), desc = 'Stippling')
 		stipple_xmax = 0
 		stipple_ymax = 0
+		#Calculate Scale
 		for stipple in stipples:
 			if stipple[0] > stipple_xmax:
 				stipple_xmax = stipple[0]
 			if stipple[1] > stipple_ymax:
 				stipple_ymax = stipple[1]
 		image_scale = min((self.x_max - self.x_min) / stipple_xmax, (self.y_max - self.y_min) /  stipple_ymax)
-		print(image_scale)
 		for stipple in stipples:
-			stipple_number = stipple_number + 1
-			print('drawing stipple: ' + str(stipple_number) + ' of ' + str(stipple_count))
+			bar.update()
 			arm.move(z=self.z_max, speed=arm.default_speed)
 			#Coordinates need to be flipped for some reason
 			y, x = stipple
@@ -147,7 +138,6 @@ class Drawing:
 			y_translated = y - ((self.y_max - self.y_min) / 2)
 			arm.move(x = x_translated, y = y_translated, speed = default_speed)
 			arm.move(z = self.z_min, speed = arm.default_speed)
-		print('done')
 		arm.finish()
 
 #=======================================================================
@@ -206,7 +196,7 @@ def parse(file):
 				xstart = xend
 				ystart = yend
 	return font
-	
+
 #-----------------------------------------------------------------------
 def sanitize(string):
 	retval = ''
@@ -216,7 +206,7 @@ def sanitize(string):
 			retval += char
 		else: retval += ( ' 0x%02X ' %ord(char))
 	return retval
-	
+
 #-----------------------------------------------------------------------
 def rotate_scale(x, y ,x_scale ,y_scale ,angle):
 	Deg2Rad = 2.0 * pi / 360.0
@@ -280,12 +270,13 @@ class Writing:
 		
 		#arm = uArm()
 		global arm
+		bar = tqdm.tqdm(total = len(string), desc = 'Writing')
 		for char in string:
+			bar.update()
 			if char == ' ':
 				x_offset += font_word_space
 				continue
 
-			print('Writing: ' + char)
 			first_stroke = True
 			for stroke in font[char].stroke_list:
 				dx = old_x - stroke.xstart
@@ -314,7 +305,6 @@ class Writing:
 
 			char_width = font[char].get_xmax()
 			x_offset += font_char_space + char_width
-		print('done')
 		arm.finish()
 
 #=======================================================================
