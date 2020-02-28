@@ -47,7 +47,7 @@ class uArm:
 
 	def finish(self):
 		self.reset()
-		self.swift.disconnect()
+		#self.swift.disconnect()
 
 #=======================================================================
 def set_pen_position():
@@ -88,7 +88,8 @@ class Drawing:
 		return scale
 
 	def draw_contours(self, contours, image_scale = 1, contour_threshold = 5, draw_speed = 5000):
-		arm = uArm()
+		#arm = uArm()
+		global arm
 		contour_count = len(contours)
 		contour_number = 0
 		for contour in contours:
@@ -236,7 +237,8 @@ class Writing:
 		old_x = old_y = 0      # last position
 		x_offset = 0           # distance along raw string in font units
 		
-		arm = uArm()
+		#arm = uArm()
+		global arm
 		for char in string:
 			if char == ' ':
 				x_offset += font_word_space
@@ -274,6 +276,7 @@ class Writing:
 		print('done')
 		arm.finish()
 
+arm = uArm()
 #=======================================================================
 def main():
 	cmd_type = sys.argv[1]
