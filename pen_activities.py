@@ -113,6 +113,33 @@ class Drawing:
 		print('done')
 		arm.finish()
 
+	def draw_stipples(self, stipple_npy_file):
+		global arm
+		stipples = np.load(stipple_npy_file)
+		stipple_count = len(stipples)
+		stipple_number = 0
+		stipple_xmax = 0
+		stipple_ymax = 0
+		for stipple in stipples:
+			if stipple[0] > stipple_xmax:
+				stipple_xmax = stipple[0]
+			if stipple[1] > stipple_ymax:
+				stipple_ymax = stipple[1]
+		image_scale = min((self.x_max - self.x_min) / stipple_xmax, (self.y_max - self.y_min) /  stipple_ymax)
+		print(image_scale)
+		for stipple in stipples:
+			stipple_number = stipple_number + 1
+			print('drawing stipple: ' + str(stipple_number) + ' of ' + str(stipple_count))
+			arm.move(z=self.z_max, speed=arm.default_speed)
+			x, y = stipple
+			y = y * image_scale
+			x = x * image_scale
+			x_translated = x + self.x_min
+			y_translated = y - ((self.y_max - self.y_min) / 2)
+			arm.move(x = x_translated, y = y_translated, speed = default_speed)
+			arm.move(z = self.z_min, speed = arm.default_speed)
+		print('done')
+		arm.finish()
 #=======================================================================
 #This bit forked from https://github.com/LinuxCNC/simple-gcode-generators
 #Modified for uArm coordinates system instead of gcode
