@@ -4,6 +4,7 @@ import time
 from math import *
 import re
 import glob
+import tqdm
 import cv2
 import numpy as np
 from uarm.wrapper import SwiftAPI
@@ -16,6 +17,8 @@ default_speed = 30000			#speed when in transit (not drawing)
 font_path = os.path.dirname(os.path.realpath(__file__))+'/cxf-fonts/'
 font_list = [os.path.basename(x) for x in glob.glob(font_path + '*.cxf')]
 
+#=======================================================================
+#=   					   uArm Class and Functions			       	   =
 #=======================================================================
 class uArm:
 	def __init__(self):
@@ -49,7 +52,7 @@ class uArm:
 		self.reset()
 		#self.swift.disconnect()
 
-#=======================================================================
+#-----------------------------------------------------------------------
 def set_pen_position():
 	arm = uArm()
 	arm.reset()
@@ -58,6 +61,8 @@ def set_pen_position():
 	confirm = input('Arm in drawing position.  Hit any key to continue')
 	arm.finish()
 
+#=======================================================================
+#=   				   Drawing Class and Functions			       	   =
 #=======================================================================
 class Drawing:
 	def __init__(self, draw_area = [[150, 250], [-50, 50]], z_offset = 0):
@@ -113,9 +118,12 @@ class Drawing:
 		print('done')
 		arm.finish()
 
-	def draw_stipples(self, stipple_npy_file):
+	def get_numpy_stipples(self, npy_file):
+		stipples = np.load(npy_file)
+		return stipples
+
+	def draw_stipples(self, stipples):
 		global arm
-		stipples = np.load(stipple_npy_file)
 		stipple_count = len(stipples)
 		stipple_number = 0
 		stipple_xmax = 0
@@ -131,7 +139,8 @@ class Drawing:
 			stipple_number = stipple_number + 1
 			print('drawing stipple: ' + str(stipple_number) + ' of ' + str(stipple_count))
 			arm.move(z=self.z_max, speed=arm.default_speed)
-			x, y = stipple
+			#Coordinates need to be flipped for some reason
+			y, x = stipple
 			y = y * image_scale
 			x = x * image_scale
 			x_translated = x + self.x_min
@@ -140,6 +149,9 @@ class Drawing:
 			arm.move(z = self.z_min, speed = arm.default_speed)
 		print('done')
 		arm.finish()
+
+#=======================================================================
+#=   				   Writing Class and Functions			       	   =
 #=======================================================================
 #This bit forked from https://github.com/LinuxCNC/simple-gcode-generators
 #Modified for uArm coordinates system instead of gcode
@@ -194,7 +206,8 @@ def parse(file):
 				xstart = xend
 				ystart = yend
 	return font
-
+	
+#-----------------------------------------------------------------------
 def sanitize(string):
 	retval = ''
 	good=' ~!@#$%^&*_+=-{}[]|\:;"<>,./?'
@@ -203,7 +216,8 @@ def sanitize(string):
 			retval += char
 		else: retval += ( ' 0x%02X ' %ord(char))
 	return retval
-
+	
+#-----------------------------------------------------------------------
 def rotate_scale(x, y ,x_scale ,y_scale ,angle):
 	Deg2Rad = 2.0 * pi / 360.0
 	xx = x * x_scale
@@ -214,7 +228,7 @@ def rotate_scale(x, y ,x_scale ,y_scale ,angle):
 	newy=rad * sin(theta + angle*Deg2Rad)
 	return newx, newy
 
-#=======================================================================
+#-----------------------------------------------------------------------
 class Character:
 	def __init__(self, key):
 		self.key = key
@@ -231,7 +245,7 @@ class Character:
 		try: return max([s.ymax for s in self.stroke_list[:]])
 		except ValueError: return 0
 
-#=======================================================================
+#-----------------------------------------------------------------------
 class Line:
 	def __init__(self, coords):
 		self.xstart, self.ystart, self.xend, self.yend = coords
@@ -241,7 +255,7 @@ class Line:
 	def __repr__(self):
 		return "Line([%s, %s, %s, %s])" % (self.xstart, self.ystart, self.xend, self.yend)
 
-#=======================================================================
+#-----------------------------------------------------------------------
 class Writing:
 	def __init__(self, start_position = [150, 0], z_offset = 0):
 		self.x_start = start_position[0]
@@ -303,8 +317,11 @@ class Writing:
 		print('done')
 		arm.finish()
 
-arm = uArm()
 #=======================================================================
+#=   				   		 	Main			       	   			   =
+#=======================================================================
+arm = uArm()
+
 def main():
 	cmd_type = sys.argv[1]
 	print('drawing')
