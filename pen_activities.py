@@ -4,6 +4,7 @@ import time
 from math import *
 import re
 import glob
+import tqdm
 import cv2
 import numpy as np
 from uarm.wrapper import SwiftAPI
@@ -16,6 +17,8 @@ default_speed = 30000			#speed when in transit (not drawing)
 font_path = os.path.dirname(os.path.realpath(__file__))+'/cxf-fonts/'
 font_list = [os.path.basename(x) for x in glob.glob(font_path + '*.cxf')]
 
+#=======================================================================
+#=   					   uArm Class and Functions			       	   =
 #=======================================================================
 class uArm:
 	def __init__(self):
@@ -49,7 +52,7 @@ class uArm:
 		self.reset()
 		#self.swift.disconnect()
 
-#=======================================================================
+#-----------------------------------------------------------------------
 def set_pen_position():
 	arm = uArm()
 	arm.reset()
@@ -58,6 +61,8 @@ def set_pen_position():
 	confirm = input('Arm in drawing position.  Hit any key to continue')
 	arm.finish()
 
+#=======================================================================
+#=   				   Drawing Class and Functions			       	   =
 #=======================================================================
 class Drawing:
 	def __init__(self, draw_area = [[150, 250], [-50, 50]], z_offset = 0):
@@ -83,21 +88,17 @@ class Drawing:
 		return contours
 
 	def get_scale(self, image):
-		#height, width, channels = image.shape
 		scale = min((self.x_max - self.x_min) / self.image_height, (self.y_max - self.y_min) / self.image_width)
 		return scale
 
 	def draw_contours(self, contours, image_scale = 1, contour_threshold = 5, draw_speed = 5000):
-		#arm = uArm()
 		global arm
-		contour_count = len(contours)
-		contour_number = 0
+		bar = tqdm.tqdm(total = len(contours), desc = 'Drawing')
 		for contour in contours:
-			contour_number = contour_number + 1
+			bar.update()
 			speed = arm.default_speed
 			arm.move(z = self.z_max, speed = speed)
 			if len(contour) >= contour_threshold:
-				print('drawing contour: ' + str(contour_number) + ' of ' + str(contour_count))
 				for point in range(len(contour)):
 					#Coordinates need to be flipped for some reason
 					y, x = contour[point][0]
@@ -108,11 +109,41 @@ class Drawing:
 					arm.move(x = x_translated, y = y_translated, speed = speed)
 					arm.move(z = self.z_min, speed = arm.default_speed)
 					speed = draw_speed
-			else:
-				print('skipping contour #: ' + str(contour_number) + ' (points = ' + str(len(contour)) + ')')
-		print('done')
 		arm.finish()
+		bar.close()
 
+	def get_numpy_stipples(self, npy_file):
+		stipples = np.load(npy_file)
+		return stipples
+
+	def draw_stipples(self, stipples):
+		global arm
+		bar = tqdm.tqdm(total = len(stipples), desc = 'Stippling')
+		stipple_xmax = 0
+		stipple_ymax = 0
+		#Calculate Scale
+		for stipple in stipples:
+			if stipple[0] > stipple_xmax:
+				stipple_xmax = stipple[0]
+			if stipple[1] > stipple_ymax:
+				stipple_ymax = stipple[1]
+		image_scale = min((self.x_max - self.x_min) / stipple_xmax, (self.y_max - self.y_min) /  stipple_ymax)
+		for stipple in stipples:
+			bar.update()
+			arm.move(z=self.z_max, speed=arm.default_speed)
+			#Coordinates need to be flipped for some reason
+			y, x = stipple
+			y = y * image_scale
+			x = x * image_scale
+			x_translated = x + self.x_min
+			y_translated = y - ((self.y_max - self.y_min) / 2)
+			arm.move(x = x_translated, y = y_translated, speed = default_speed)
+			arm.move(z = self.z_min, speed = arm.default_speed)
+		arm.finish()
+		bar.close()
+
+#=======================================================================
+#=   				   Writing Class and Functions			       	   =
 #=======================================================================
 #This bit forked from https://github.com/LinuxCNC/simple-gcode-generators
 #Modified for uArm coordinates system instead of gcode
@@ -168,6 +199,7 @@ def parse(file):
 				ystart = yend
 	return font
 
+#-----------------------------------------------------------------------
 def sanitize(string):
 	retval = ''
 	good=' ~!@#$%^&*_+=-{}[]|\:;"<>,./?'
@@ -177,6 +209,7 @@ def sanitize(string):
 		else: retval += ( ' 0x%02X ' %ord(char))
 	return retval
 
+#-----------------------------------------------------------------------
 def rotate_scale(x, y ,x_scale ,y_scale ,angle):
 	Deg2Rad = 2.0 * pi / 360.0
 	xx = x * x_scale
@@ -187,7 +220,7 @@ def rotate_scale(x, y ,x_scale ,y_scale ,angle):
 	newy=rad * sin(theta + angle*Deg2Rad)
 	return newx, newy
 
-#=======================================================================
+#-----------------------------------------------------------------------
 class Character:
 	def __init__(self, key):
 		self.key = key
@@ -204,7 +237,7 @@ class Character:
 		try: return max([s.ymax for s in self.stroke_list[:]])
 		except ValueError: return 0
 
-#=======================================================================
+#-----------------------------------------------------------------------
 class Line:
 	def __init__(self, coords):
 		self.xstart, self.ystart, self.xend, self.yend = coords
@@ -214,7 +247,7 @@ class Line:
 	def __repr__(self):
 		return "Line([%s, %s, %s, %s])" % (self.xstart, self.ystart, self.xend, self.yend)
 
-#=======================================================================
+#-----------------------------------------------------------------------
 class Writing:
 	def __init__(self, start_position = [150, 0], z_offset = 0):
 		self.x_start = start_position[0]
@@ -239,12 +272,13 @@ class Writing:
 		
 		#arm = uArm()
 		global arm
+		bar = tqdm.tqdm(total = len(string), desc = 'Writing')
 		for char in string:
+			bar.update()
 			if char == ' ':
 				x_offset += font_word_space
 				continue
 
-			print('Writing: ' + char)
 			first_stroke = True
 			for stroke in font[char].stroke_list:
 				dx = old_x - stroke.xstart
@@ -273,11 +307,14 @@ class Writing:
 
 			char_width = font[char].get_xmax()
 			x_offset += font_char_space + char_width
-		print('done')
 		arm.finish()
+		bar.close()
 
-arm = uArm()
 #=======================================================================
+#=   				   		 	Main			       	   			   =
+#=======================================================================
+arm = uArm()
+
 def main():
 	cmd_type = sys.argv[1]
 	print('drawing')
