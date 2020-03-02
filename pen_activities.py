@@ -54,7 +54,6 @@ class uArm:
 
 #-----------------------------------------------------------------------
 def set_pen_position():
-	arm = uArm()
 	arm.reset()
 	confirm = input('Arm in default position.  Hit any key to continue')
 	arm.move(z = z_min)
@@ -65,7 +64,7 @@ def set_pen_position():
 #=   				   Drawing Class and Functions			       	   =
 #=======================================================================
 class Drawing:
-	def __init__(self, draw_area = [[150, 250], [-50, 50]], z_offset = 0):
+	def __init__(self, draw_area = [[150, 250], [10, 110]], z_offset = 0):
 		self.x_min = draw_area[0][0]
 		self.x_max = draw_area[0][1]
 		self.y_min = draw_area[1][0]
@@ -73,7 +72,23 @@ class Drawing:
 		self.z_min = z_min + z_offset
 		self.z_max = z_max + z_offset
 
-	def get_edges(self, file, bilateral_kSize = 3, bilateral_sigmaColor = 75, bilateral_sigmaSpace = 75, gaussian_kSize = 9, canny_minVal = 250, canny_maxVal = 300):
+	def draw_border(self, offset = 0, draw_speed = 5000):
+		global arm
+		arm.move(z = self.z_max, speed = draw_speed)
+		arm.move(x = self.x_max + offset, y = self.y_max + offset)
+		arm.move(z = self.z_min)
+		for x in range((self.x_max + offset) - (self.x_min - offset)):
+			arm.move(x = self.x_max + offset - x, y = self.y_max + offset)
+		for y in range((self.y_max + offset) - (self.y_min - offset)):
+			arm.move(x = self.x_min - offset, y = self.y_max + offset - y)
+		for x in range((self.x_max + offset) - (self.x_min - offset)):
+			arm.move(x = self.x_min - offset + x, y = self.y_min - offset)
+		for y in range((self.y_max + offset) - (self.y_min - offset)):
+			arm.move(x = self.x_max + offset, y = self.y_min - offset + y)
+		arm.move(z = self.z_max)
+		arm.finish()
+
+	def get_edges(self, file, bilateral_kSize = 3, bilateral_sigmaColor = 75, bilateral_sigmaSpace = 75, gaussian_kSize = 7, canny_minVal = 250, canny_maxVal = 300):
 		image = cv2.imread(file)
 		self.image_height, self.image_width, _ = image.shape
 		image = cv2.bilateralFilter(image, bilateral_kSize, bilateral_sigmaColor, bilateral_sigmaSpace)
@@ -112,6 +127,27 @@ class Drawing:
 		arm.finish()
 		bar.close()
 
+	def draw_contour_stipples(self, contours, image_scale = 1):
+		global arm
+		total = 0
+		for contour in contours:
+			for point in range(len(contour)):
+				total = total + 1
+		bar = tqdm.tqdm(total = total, desc = 'Stippling')
+		for contour in contours:
+			for point in range(len(contour)):
+				bar.update()
+				y, x = contour[point][0]
+				y = y * image_scale
+				x = x * image_scale
+				x_translated = x + self.x_min
+				y_translated = y + ((self.y_max - self.y_min) / 2)
+				arm.move(x = x_translated, y = y_translated, speed = arm.default_speed)
+				arm.move(z = self.z_min, speed = arm.default_speed)
+				arm.move(z = self.z_max, speed = arm.default_speed)
+		arm.finish()
+		bar.close()
+
 	def get_numpy_stipples(self, npy_file):
 		stipples = np.load(npy_file)
 		return stipples
@@ -123,22 +159,26 @@ class Drawing:
 		stipple_ymax = 0
 		#Calculate Scale
 		for stipple in stipples:
-			if stipple[0] > stipple_xmax:
-				stipple_xmax = stipple[0]
-			if stipple[1] > stipple_ymax:
-				stipple_ymax = stipple[1]
-		image_scale = min((self.x_max - self.x_min) / stipple_xmax, (self.y_max - self.y_min) /  stipple_ymax)
+			if stipple[0] > stipple_ymax:
+				stipple_ymax = stipple[0]
+			if stipple[1] > stipple_xmax:
+				stipple_xmax = stipple[1]
+		scale_x = (self.x_max - self.x_min) / stipple_xmax
+		scale_y = (self.y_max - self.y_min) /  stipple_ymax
+		#image_scale = min((self.x_max - self.x_min) / stipple_xmax, (self.y_max - self.y_min) /  stipple_ymax)
 		for stipple in stipples:
 			bar.update()
-			arm.move(z=self.z_max, speed=arm.default_speed)
 			#Coordinates need to be flipped for some reason
 			y, x = stipple
-			y = y * image_scale
-			x = x * image_scale
+			y = y * scale_y
+			x = x * scale_x
+			#y = y * image_scale
+			#x = x * image_scale
 			x_translated = x + self.x_min
-			y_translated = y - ((self.y_max - self.y_min) / 2)
+			y_translated = -1  * (y + ((self.y_max - self.y_min) / 2))
 			arm.move(x = x_translated, y = y_translated, speed = default_speed)
 			arm.move(z = self.z_min, speed = arm.default_speed)
+			arm.move(z=self.z_max, speed=arm.default_speed)
 		arm.finish()
 		bar.close()
 
