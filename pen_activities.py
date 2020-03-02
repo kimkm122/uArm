@@ -10,7 +10,7 @@ import numpy as np
 from uarm.wrapper import SwiftAPI
 
 z_min = 0						#z-down position
-z_max = 10						#z-up position
+z_max = 5						#z-up position
 default_position = [100, 0, 50]	#swift reset position
 default_speed = 30000			#speed when in transit (not drawing)
 
@@ -45,12 +45,12 @@ class uArm:
 		self.swift.flush_cmd(wait_stop = True)
 
 	def move(self, x = None, y = None, z = None, speed = None):
-		self.swift.set_position(x = x, y = y , z = z, speed = speed)
+		#Swapping X and Y.  Can't deal with the default coordinate system
+		self.swift.set_position(x = y, y = x , z = z, speed = speed)
 		self.swift.flush_cmd(wait_stop = True)
 
 	def finish(self):
 		self.reset()
-		#self.swift.disconnect()
 
 #-----------------------------------------------------------------------
 def set_pen_position():
@@ -64,7 +64,7 @@ def set_pen_position():
 #=   				   Drawing Class and Functions			       	   =
 #=======================================================================
 class Drawing:
-	def __init__(self, draw_area = [[150, 250], [10, 110]], z_offset = 0):
+	def __init__(self, draw_area = [[10, 110], [150, 250]], z_offset = 0):
 		self.x_min = draw_area[0][0]
 		self.x_max = draw_area[0][1]
 		self.y_min = draw_area[1][0]
@@ -103,7 +103,7 @@ class Drawing:
 		return contours
 
 	def get_scale(self, image):
-		scale = min((self.x_max - self.x_min) / self.image_height, (self.y_max - self.y_min) / self.image_width)
+		scale = min((self.x_max - self.x_min) / self.image_width, (self.y_max - self.y_min) / self.image_height)
 		return scale
 
 	def draw_contours(self, contours, image_scale = 1, contour_threshold = 5, draw_speed = 5000):
@@ -116,11 +116,11 @@ class Drawing:
 			if len(contour) >= contour_threshold:
 				for point in range(len(contour)):
 					#Coordinates need to be flipped for some reason
-					y, x = contour[point][0]
+					x, y = contour[point][0]
 					y = y * image_scale
 					x = x * image_scale
 					x_translated = x + self.x_min
-					y_translated = y - ((self.y_max - self.y_min) / 2)
+					y_translated = y + self.y_min
 					arm.move(x = x_translated, y = y_translated, speed = speed)
 					arm.move(z = self.z_min, speed = arm.default_speed)
 					speed = draw_speed
@@ -137,11 +137,11 @@ class Drawing:
 		for contour in contours:
 			for point in range(len(contour)):
 				bar.update()
-				y, x = contour[point][0]
+				x, y = contour[point][0]
 				y = y * image_scale
 				x = x * image_scale
 				x_translated = x + self.x_min
-				y_translated = y + ((self.y_max - self.y_min) / 2)
+				y_translated = y + self.y_min
 				arm.move(x = x_translated, y = y_translated, speed = arm.default_speed)
 				arm.move(z = self.z_min, speed = arm.default_speed)
 				arm.move(z = self.z_max, speed = arm.default_speed)
@@ -159,23 +159,19 @@ class Drawing:
 		stipple_ymax = 0
 		#Calculate Scale
 		for stipple in stipples:
-			if stipple[0] > stipple_ymax:
-				stipple_ymax = stipple[0]
-			if stipple[1] > stipple_xmax:
-				stipple_xmax = stipple[1]
-		scale_x = (self.x_max - self.x_min) / stipple_xmax
-		scale_y = (self.y_max - self.y_min) /  stipple_ymax
-		#image_scale = min((self.x_max - self.x_min) / stipple_xmax, (self.y_max - self.y_min) /  stipple_ymax)
+			if stipple[0] > stipple_xmax:
+				stipple_xmax = stipple[0]
+			if stipple[1] > stipple_ymax:
+				stipple_ymax = stipple[1]
+		image_scale = min((self.x_max - self.x_min) / stipple_xmax, (self.y_max - self.y_min) /  stipple_ymax)
 		for stipple in stipples:
 			bar.update()
 			#Coordinates need to be flipped for some reason
-			y, x = stipple
-			y = y * scale_y
-			x = x * scale_x
-			#y = y * image_scale
-			#x = x * image_scale
+			x, y = stipple
+			y = y * image_scale
+			x = x * image_scale
 			x_translated = x + self.x_min
-			y_translated = -1  * (y + ((self.y_max - self.y_min) / 2))
+			y_translated = y + self.y_min
 			arm.move(x = x_translated, y = y_translated, speed = default_speed)
 			arm.move(z = self.z_min, speed = arm.default_speed)
 			arm.move(z=self.z_max, speed=arm.default_speed)
@@ -289,13 +285,63 @@ class Line:
 
 #-----------------------------------------------------------------------
 class Writing:
-	def __init__(self, start_position = [150, 0], z_offset = 0):
+	def __init__(self, start_position = [0, 250], z_offset = 0):
 		self.x_start = start_position[0]
 		self.y_start = start_position[1]
 		self.z_min = z_min + z_offset
 		self.z_max = z_max + z_offset
 
-	def write_text(self, string, font_file = 'normal.cxf', x_scale = 1, y_scale = 1, char_space_percent = 5, word_space_percent = 100, text_angle = 0, draw_speed = 5000):
+	def text_shape(self, string, font_file = 'normal.cxf', x_scale = 1, y_scale = 1, char_space_percent = 5, word_space_percent = 100, text_angle = 0):
+		if font_file[-4:] != '.cxf':
+			font_file += '.cxf'
+
+		file = open(font_path + font_file, encoding = 'ISO-8859-1')
+		font = parse(file)
+		file.close()
+
+		font_line_height = max(font[key].get_ymax() for key in font)
+		font_word_space =  max(font[key].get_xmax() for key in font) * (word_space_percent/100.0)
+		font_char_space = font_word_space * (char_space_percent /100.0)
+
+		max_y = max_y = 0
+		old_x = old_y = 0      # last position
+		x_offset = 0           # distance along raw string in font units
+
+		for char in string:
+			if char == ' ':
+				x_offset += font_word_space
+				continue
+
+			for stroke in font[char].stroke_list:
+				dx = old_x - stroke.xstart
+				dy = old_y - stroke.ystart
+				dist = sqrt(dx*dx + dy*dy)
+
+				#Need to swap coordinates for uArm to write in correct orientation for some reason
+				x1 = -1 * (stroke.xstart + x_offset)
+				y1 = stroke.ystart
+				x1, y1 = rotate_scale(x1, y1, x_scale, y_scale, text_angle)
+				if x1 > max_x:
+					max_x = x1
+				if y1 > max_y:
+					max_y = y1
+
+				#Coordinates swapped here again
+				x2 = -1 * (stroke.xend + x_offset)
+				y2 = stroke.yend
+				x2, y2 = rotate_scale(x2, y2, x_scale, y_scale, text_angle)
+				if x2 > max_x:
+					max_x = x2
+				if y2 > max_y:
+					max_y = y2
+
+				old_x, old_y = stroke.xend, stroke.yend
+
+			char_width = font[char].get_xmax()
+			x_offset += font_char_space + char_width
+		return max_x, max_y
+
+	def write_text(self, string, font_file = 'normal.cxf', x_scale = 1, y_scale = 1, char_space_percent = 5, word_space_percent = 100, text_angle = 0, max_width = 100, draw_speed = 5000):
 		if font_file[-4:] != '.cxf':
 			font_file += '.cxf'
 
@@ -309,44 +355,58 @@ class Writing:
 
 		old_x = old_y = 0      # last position
 		x_offset = 0           # distance along raw string in font units
-		
-		#arm = uArm()
+		y_offset = 0
+		string_width = 0
+		words = string.split()
+
 		global arm
 		bar = tqdm.tqdm(total = len(string), desc = 'Writing')
-		for char in string:
-			bar.update()
-			if char == ' ':
-				x_offset += font_word_space
-				continue
 
-			first_stroke = True
-			for stroke in font[char].stroke_list:
-				dx = old_x - stroke.xstart
-				dy = old_y - stroke.ystart
-				dist = sqrt(dx*dx + dy*dy)
-				
-				#Need to swap coordinates for uArm to write in correct orientation for some reason
-				x1 = stroke.ystart
-				y1 = -stroke.xstart - x_offset
-				x1, y1 = rotate_scale(x1, y1, x_scale, y_scale, text_angle)
+		for i in range(len(words)):
+			word = words[i] + ' '
+			word_width, word_height = text_shape(word, font_file, x_scale, y_scale, char_space_percent, word_space_percent, text_angle)
+			if string_width + word_width > max_width:
+				old_x = old_y = 0
+				y_offset = y_offset - (1.5 * word_height)
+				x_offset = 0
+				string_width = 0
 
-				if (dist > 0.001) or first_stroke:
-					first_stroke = False
-					arm.move(z = self.z_max, speed = arm.default_speed)
-					arm.move(x = x1 + self.x_start, y = y1 + self.y_start, speed = arm.default_speed)
-					arm.move(z = self.z_min, speed = arm.default_speed)
+			string_width = string_width + word_width
 
-				#Coordinates swapped here again
-				x2 = stroke.yend
-				y2 = -stroke.xend - x_offset
-				x2, y2 = rotate_scale(x2, y2, x_scale, y_scale, text_angle)
+			for char in word:
+				bar.update()
+				if char == ' ':
+					x_offset += font_word_space
+					continue
 
-				arm.move(x = x2 + self.x_start, y = y2 + self.y_start, speed = draw_speed)
+				first_stroke = True
+				for stroke in font[char].stroke_list:
+					dx = old_x - stroke.xstart
+					dy = old_y - stroke.ystart
+					dist = sqrt(dx*dx + dy*dy)
+					
+					#Need to swap coordinates for uArm to write in correct orientation for some reason
+					x1 = -1 * (stroke.xstart + x_offset)
+					y1 = stroke.ystart + y_offset
+					x1, y1 = rotate_scale(x1, y1, x_scale, y_scale, text_angle)
 
-				old_x, old_y = stroke.xend, stroke.yend
+					if (dist > 0.001) or first_stroke:
+						first_stroke = False
+						arm.move(z = self.z_max, speed = arm.default_speed)
+						arm.move(x = x1 + self.x_start, y = y1 + self.y_start, speed = arm.default_speed)
+						arm.move(z = self.z_min, speed = arm.default_speed)
 
-			char_width = font[char].get_xmax()
-			x_offset += font_char_space + char_width
+					#Coordinates swapped here again
+					x2 = -1 * (stroke.xend + x_offset)
+					y2 = stroke.yend + y_offset
+					x2, y2 = rotate_scale(x2, y2, x_scale, y_scale, text_angle)
+
+					arm.move(x = x2 + self.x_start, y = y2 + self.y_start, speed = draw_speed)
+
+					old_x, old_y = stroke.xend, stroke.yend
+
+				char_width = font[char].get_xmax()
+				x_offset += font_char_space + char_width
 		arm.finish()
 		bar.close()
 
