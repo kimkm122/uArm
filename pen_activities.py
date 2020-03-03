@@ -303,7 +303,7 @@ class Writing:
 		font_word_space =  max(font[key].get_xmax() for key in font) * (word_space_percent/100.0)
 		font_char_space = font_word_space * (char_space_percent /100.0)
 
-		max_y = max_y = 0
+		max_x = max_y = 0
 		old_x = old_y = 0      # last position
 		x_offset = 0           # distance along raw string in font units
 
@@ -321,8 +321,8 @@ class Writing:
 				x1 = -1 * (stroke.xstart + x_offset)
 				y1 = stroke.ystart
 				x1, y1 = rotate_scale(x1, y1, x_scale, y_scale, text_angle)
-				if x1 > max_x:
-					max_x = x1
+				if abs(x1) > max_x:
+					max_x = abs(x1)
 				if y1 > max_y:
 					max_y = y1
 
@@ -330,8 +330,8 @@ class Writing:
 				x2 = -1 * (stroke.xend + x_offset)
 				y2 = stroke.yend
 				x2, y2 = rotate_scale(x2, y2, x_scale, y_scale, text_angle)
-				if x2 > max_x:
-					max_x = x2
+				if abs(x2) > max_x:
+					max_x = abs(x2)
 				if y2 > max_y:
 					max_y = y2
 
@@ -341,7 +341,7 @@ class Writing:
 			x_offset += font_char_space + char_width
 		return max_x, max_y
 
-	def write_text(self, string, font_file = 'normal.cxf', x_scale = 1, y_scale = 1, char_space_percent = 5, word_space_percent = 100, text_angle = 0, max_width = 100, draw_speed = 5000):
+	def write_text(self, string, font_file = 'normal.cxf', x_scale = 1, y_scale = 1, char_space_percent = 5, word_space_percent = 100, text_angle = 0, max_width = 50, draw_speed = 5000):
 		if font_file[-4:] != '.cxf':
 			font_file += '.cxf'
 
@@ -364,7 +364,7 @@ class Writing:
 
 		for i in range(len(words)):
 			word = words[i] + ' '
-			word_width, word_height = text_shape(word, font_file, x_scale, y_scale, char_space_percent, word_space_percent, text_angle)
+			word_width, word_height = self.text_shape(word, font_file, x_scale, y_scale, char_space_percent, word_space_percent, text_angle)
 			if string_width + word_width > max_width:
 				old_x = old_y = 0
 				y_offset = y_offset - (1.5 * word_height)
