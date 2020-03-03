@@ -170,7 +170,7 @@ class Drawing:
 			x, y = stipple
 			y = y * image_scale
 			x = x * image_scale
-			x_translated = x + self.x_min
+			x_translated = -1 * (x + self.x_min)
 			y_translated = y + self.y_min
 			arm.move(x = x_translated, y = y_translated, speed = default_speed)
 			arm.move(z = self.z_min, speed = arm.default_speed)
